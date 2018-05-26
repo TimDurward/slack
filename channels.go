@@ -106,8 +106,8 @@ func (api *Client) DeleteChannel(channelName string) (*SlackResponse, error) {
 // https://github.com/ErikKalkoken/slackApiDoc/blob/master/channels.delete.md
 func (api *Client) DeleteChannelContext(ctx context.Context, channelName string) (*SlackResponse, error) {
 	values := url.Values{
-		"token": {api.token},
-		"name":  {channelName},
+		"token":   {api.token},
+		"channel": {channelName},
 	}
 
 	response, err := channelRequest(ctx, api.httpclient, "channels.delete", values, api.debug)
