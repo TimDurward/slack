@@ -97,14 +97,14 @@ func (api *Client) CreateChannelContext(ctx context.Context, channelName string)
 
 // DeleteChannel deletes a channel with a given name
 // Undocumented method 'channels.delete'
-func (api *Client) DeleteChannel(channelName string) {
+func (api *Client) DeleteChannel(channelName string) (*Channel, error) {
 	return api.DeleteChannelContext(context.Background(), channelName)
 }
 
 // DeleteChannelContext deletes a channel with a given name
 // Undocumented method 'channels.delete'
 // https://github.com/ErikKalkoken/slackApiDoc/blob/master/channels.delete.md
-func (api *Client) DeleteChannelContext(ctx context.Context, channelName string) {
+func (api *Client) DeleteChannelContext(ctx context.Context, channelName string) (*Channel, error) {
 	values := url.Values{
 		"token": {api.token},
 		"name":  {channelName},
@@ -114,7 +114,7 @@ func (api *Client) DeleteChannelContext(ctx context.Context, channelName string)
 	if err != nil {
 		return nil, err
 	}
-	return response
+	return &response.Channel, nil
 }
 
 // GetChannelHistory retrieves the channel history
