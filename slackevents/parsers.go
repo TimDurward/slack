@@ -36,6 +36,7 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
@@ -47,6 +48,7 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 		if err != nil {
 			return EventsAPIEvent{
 				"",
+				"",
 				"unmarshalling_error",
 				&slack.UnmarshallingErrorEvent{ErrorObj: err},
 				EventsAPIInnerEvent{},
@@ -54,6 +56,7 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 		}
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			e.Type,
 			cbEvent,
 			EventsAPIInnerEvent{},
@@ -64,6 +67,7 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
@@ -71,6 +75,7 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
 		urlVE,
 		EventsAPIInnerEvent{},
@@ -84,6 +89,7 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			"unmarshalling_error",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
@@ -93,6 +99,7 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if !exists {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			iE.Type,
 			nil,
 			EventsAPIInnerEvent{},
@@ -104,6 +111,7 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			"unmarshalling_error",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
@@ -111,6 +119,7 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
 		e,
 		EventsAPIInnerEvent{iE.Type, recvEvent},
@@ -131,6 +140,13 @@ type verifier interface {
 func OptionVerifyToken(v verifier) Option {
 	return func(cfg *Config) {
 		cfg.TokenVerified = v.Verify(cfg.VerificationToken)
+	}
+}
+
+// OptionNoVerifyToken skips the check of the Slack verification token
+func OptionNoVerifyToken() Option {
+	return func(cfg *Config) {
+		cfg.TokenVerified = true
 	}
 }
 
@@ -158,7 +174,7 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 	}
 
 	if !cfg.TokenVerified {
-		return EventsAPIEvent{}, errors.New("No")
+		return EventsAPIEvent{}, errors.New("Invalid verification token")
 	}
 
 	if e.Type == CallbackEvent {
@@ -167,6 +183,7 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 		if err != nil {
 			err := fmt.Errorf("EventsAPI Error parsing inner event: %s, %s", innerEvent.Type, err)
 			return EventsAPIEvent{
+				"",
 				"",
 				"unmarshalling_error",
 				&slack.UnmarshallingErrorEvent{ErrorObj: err},
@@ -180,6 +197,7 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
@@ -187,8 +205,30 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
 		urlVerificationEvent,
 		EventsAPIInnerEvent{},
 	}, nil
+}
+
+func ParseActionEvent(payloadString string, opts ...Option) (MessageAction, error) {
+	byteString := []byte(payloadString)
+	action := MessageAction{}
+	err := json.Unmarshal(byteString, &action)
+	if err != nil {
+		return MessageAction{}, errors.New("MessageAction unmarshalling failed")
+	}
+
+	cfg := &Config{}
+	cfg.VerificationToken = action.Token
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if !cfg.TokenVerified {
+		return MessageAction{}, errors.New("invalid verification token")
+	} else {
+		return action, nil
+	}
 }

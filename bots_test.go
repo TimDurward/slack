@@ -24,8 +24,7 @@ func TestGetBotInfo(t *testing.T) {
 	http.HandleFunc("/bots.info", getBotInfo)
 
 	once.Do(startServer)
-	SLACK_API = "http://" + serverAddr + "/"
-	api := New("testing-token")
+	api := New("testing-token", OptionAPIURL("http://"+serverAddr+"/"))
 
 	bot, err := api.GetBotInfo("B02875YLA")
 	if err != nil {
