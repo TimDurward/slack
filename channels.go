@@ -134,7 +134,7 @@ func (api *Client) DeleteChannelContext(ctx context.Context, channelName string)
 		"channel": {channelName},
 	}
 
-	response, err := channelRequest(ctx, api.httpclient, "channels.delete", values, api.debug)
+	response, err := api.channelRequest(ctx, "channels.delete", values)
 	if err != nil {
 		return nil, err
 	}
