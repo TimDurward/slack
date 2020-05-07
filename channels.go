@@ -113,6 +113,31 @@ func (api *Client) CreateChannelContext(ctx context.Context, channelName string)
 	return &response.Channel, nil
 }
 
+// DeleteChannel deletes a channel with a given Channel ID and returns a *SlackResponse with a custom context
+// 
+// Undocumented method 'channels.delete'
+// https://github.com/ErikKalkoken/slackApiDoc/blob/master/channels.delete.md
+func (api *Client) DeleteChannel(channelID string) (*SlackResponse, error) {
+	return api.DeleteChannelContext(context.Background(), channelID)
+}
+
+// DeleteChannelContext deletes a channel with a given Channel ID and returns a *SlackResponse
+// 
+// Undocumented method 'channels.delete'
+// https://github.com/ErikKalkoken/slackApiDoc/blob/master/channels.delete.md
+func (api *Client) DeleteChannelContext(ctx context.Context, channelID string) (*SlackResponse, error) {
+	values := url.Values{
+		"token":   {api.token},
+		"channel": {channelID},
+	}
+
+	response, err := api.channelRequest(ctx, "channels.delete", values)
+	if err != nil {
+		return nil, err
+	}
+	return &response.SlackResponse, nil
+}
+
 // GetChannelHistory retrieves the channel history
 // see https://api.slack.com/methods/channels.history
 func (api *Client) GetChannelHistory(channelID string, params HistoryParameters) (*History, error) {
