@@ -2,7 +2,6 @@ package slack
 
 import (
 	"context"
-	"encoding/json"
 	"net/url"
 	"sync"
 	"time"
@@ -12,6 +11,15 @@ import (
 
 const (
 	websocketDefaultTimeout = 10 * time.Second
+	defaultPingInterval     = 30 * time.Second
+)
+
+const (
+	rtmEventTypeAck                 = ""
+	rtmEventTypeHello               = "hello"
+	rtmEventTypeGoodbye             = "goodbye"
+	rtmEventTypePong                = "pong"
+	rtmEventTypeDesktopNotification = "desktop_notification"
 )
 
 // StartRTM calls the "rtm.start" endpoint and returns the provided URL and the full Info block.
@@ -29,7 +37,7 @@ func (api *Client) StartRTM() (info *Info, websocketURL string, err error) {
 // To have a fully managed Websocket connection, use `NewRTM`, and call `ManageConnection()` on it.
 func (api *Client) StartRTMContext(ctx context.Context) (info *Info, websocketURL string, err error) {
 	response := &infoResponseFull{}
-	err = post(ctx, api.httpclient, "rtm.start", url.Values{"token": {api.token}}, response, api.debug)
+	err = api.postMethod(ctx, "rtm.start", url.Values{"token": {api.token}}, response)
 	if err != nil {
 		return nil, "", err
 	}
@@ -54,7 +62,7 @@ func (api *Client) ConnectRTM() (info *Info, websocketURL string, err error) {
 // To have a fully managed Websocket connection, use `NewRTM`, and call `ManageConnection()` on it.
 func (api *Client) ConnectRTMContext(ctx context.Context) (info *Info, websocketURL string, err error) {
 	response := &infoResponseFull{}
-	err = post(ctx, api.httpclient, "rtm.connect", url.Values{"token": {api.token}}, response, api.debug)
+	err = api.postMethod(ctx, "rtm.connect", url.Values{"token": {api.token}}, response)
 	if err != nil {
 		api.Debugf("Failed to connect to RTM: %s", err)
 		return nil, "", err
@@ -83,6 +91,21 @@ func RTMOptionDialer(d *websocket.Dialer) RTMOption {
 	}
 }
 
+// RTMOptionPingInterval determines how often to deliver a ping message to slack.
+func RTMOptionPingInterval(d time.Duration) RTMOption {
+	return func(rtm *RTM) {
+		rtm.pingInterval = d
+		rtm.resetDeadman()
+	}
+}
+
+// RTMOptionConnParams installs parameters to embed into the connection URL.
+func RTMOptionConnParams(connParams url.Values) RTMOption {
+	return func(rtm *RTM) {
+		rtm.connParams = connParams
+	}
+}
+
 // NewRTM returns a RTM, which provides a fully managed connection to
 // Slack's websocket-based Real-Time Messaging protocol.
 func (api *Client) NewRTM(options ...RTMOption) *RTM {
@@ -90,13 +113,12 @@ func (api *Client) NewRTM(options ...RTMOption) *RTM {
 		Client:           *api,
 		IncomingEvents:   make(chan RTMEvent, 50),
 		outgoingMessages: make(chan OutgoingMessage, 20),
-		pings:            make(map[int]time.Time),
-		isConnected:      false,
-		wasIntentional:   true,
+		pingInterval:     defaultPingInterval,
+		pingDeadman:      time.NewTimer(deadmanDuration(defaultPingInterval)),
 		killChannel:      make(chan bool),
 		disconnected:     make(chan struct{}),
+		disconnectedm:    &sync.Once{},
 		forcePing:        make(chan bool),
-		rawEvents:        make(chan json.RawMessage),
 		idGen:            NewSafeID(1),
 		mu:               &sync.Mutex{},
 	}
@@ -106,15 +128,4 @@ func (api *Client) NewRTM(options ...RTMOption) *RTM {
 	}
 
 	return result
-}
-
-// NewRTMWithOptions Deprecated just use NewRTM(RTMOptionsUseStart(true))
-// returns a RTM, which provides a fully managed connection to
-// Slack's websocket-based Real-Time Messaging protocol.
-// This also allows to configure various options available for RTM API.
-func (api *Client) NewRTMWithOptions(options *RTMOptions) *RTM {
-	if options != nil {
-		return api.NewRTM(RTMOptionUseStart(options.UseRTMStart))
-	}
-	return api.NewRTM()
 }

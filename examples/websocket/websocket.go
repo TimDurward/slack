@@ -5,14 +5,15 @@ import (
 	"log"
 	"os"
 
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 )
 
 func main() {
-	api := slack.New("YOUR TOKEN HERE")
-	logger := log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-	slack.SetLogger(logger)
-	api.SetDebug(true)
+	api := slack.New(
+		"YOUR TOKEN HERE",
+		slack.OptionDebug(true),
+		slack.OptionLog(log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)),
+	)
 
 	rtm := api.NewRTM()
 	go rtm.ManageConnection()
@@ -37,6 +38,9 @@ func main() {
 
 		case *slack.LatencyReport:
 			fmt.Printf("Current latency: %v\n", ev.Value)
+
+		case *slack.DesktopNotificationEvent:
+			fmt.Printf("Desktop Notification: %v\n", ev)
 
 		case *slack.RTMError:
 			fmt.Printf("Error: %s\n", ev.Error())

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 )
 
 // eventsMap checks both slack.EventsMapping and
@@ -36,7 +36,9 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
+			"",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
 		}, err
@@ -47,14 +49,18 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 		if err != nil {
 			return EventsAPIEvent{
 				"",
+				"",
 				"unmarshalling_error",
+				"",
 				&slack.UnmarshallingErrorEvent{ErrorObj: err},
 				EventsAPIInnerEvent{},
 			}, err
 		}
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			e.Type,
+			e.APIAppID,
 			cbEvent,
 			EventsAPIInnerEvent{},
 		}, nil
@@ -64,14 +70,18 @@ func parseOuterEvent(rawE json.RawMessage) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
+			"",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
 		}, err
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
+		e.APIAppID,
 		urlVE,
 		EventsAPIInnerEvent{},
 	}, nil
@@ -84,7 +94,9 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			"unmarshalling_error",
+			e.APIAppID,
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
 		}, err
@@ -93,7 +105,9 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if !exists {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			iE.Type,
+			e.APIAppID,
 			nil,
 			EventsAPIInnerEvent{},
 		}, fmt.Errorf("Inner Event does not exist! %s", iE.Type)
@@ -104,14 +118,18 @@ func parseInnerEvent(e *EventsAPICallbackEvent) (EventsAPIEvent, error) {
 	if err != nil {
 		return EventsAPIEvent{
 			e.Token,
+			e.TeamID,
 			"unmarshalling_error",
+			e.APIAppID,
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
 		}, err
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
+		e.APIAppID,
 		e,
 		EventsAPIInnerEvent{iE.Type, recvEvent},
 	}, nil
@@ -131,6 +149,13 @@ type verifier interface {
 func OptionVerifyToken(v verifier) Option {
 	return func(cfg *Config) {
 		cfg.TokenVerified = v.Verify(cfg.VerificationToken)
+	}
+}
+
+// OptionNoVerifyToken skips the check of the Slack verification token
+func OptionNoVerifyToken() Option {
+	return func(cfg *Config) {
+		cfg.TokenVerified = true
 	}
 }
 
@@ -158,7 +183,7 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 	}
 
 	if !cfg.TokenVerified {
-		return EventsAPIEvent{}, errors.New("No")
+		return EventsAPIEvent{}, errors.New("Invalid verification token")
 	}
 
 	if e.Type == CallbackEvent {
@@ -168,7 +193,9 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 			err := fmt.Errorf("EventsAPI Error parsing inner event: %s, %s", innerEvent.Type, err)
 			return EventsAPIEvent{
 				"",
+				"",
 				"unmarshalling_error",
+				"",
 				&slack.UnmarshallingErrorEvent{ErrorObj: err},
 				EventsAPIInnerEvent{},
 			}, err
@@ -180,15 +207,40 @@ func ParseEvent(rawEvent json.RawMessage, opts ...Option) (EventsAPIEvent, error
 	if err != nil {
 		return EventsAPIEvent{
 			"",
+			"",
 			"unmarshalling_error",
+			"",
 			&slack.UnmarshallingErrorEvent{ErrorObj: err},
 			EventsAPIInnerEvent{},
 		}, err
 	}
 	return EventsAPIEvent{
 		e.Token,
+		e.TeamID,
 		e.Type,
+		e.APIAppID,
 		urlVerificationEvent,
 		EventsAPIInnerEvent{},
 	}, nil
+}
+
+func ParseActionEvent(payloadString string, opts ...Option) (MessageAction, error) {
+	byteString := []byte(payloadString)
+	action := MessageAction{}
+	err := json.Unmarshal(byteString, &action)
+	if err != nil {
+		return MessageAction{}, errors.New("MessageAction unmarshalling failed")
+	}
+
+	cfg := &Config{}
+	cfg.VerificationToken = action.Token
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if !cfg.TokenVerified {
+		return MessageAction{}, errors.New("invalid verification token")
+	} else {
+		return action, nil
+	}
 }

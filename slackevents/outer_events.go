@@ -9,12 +9,14 @@ import (
 // EventsAPIEvent is the base EventsAPIEvent
 type EventsAPIEvent struct {
 	Token      string `json:"token"`
+	TeamID     string `json:"team_id"`
 	Type       string `json:"type"`
+	APIAppID   string `json:"api_app_id"`
 	Data       interface{}
 	InnerEvent EventsAPIInnerEvent
 }
 
-// EventsAPIURLVerificationEvent recieved when configuring a EventsAPI driven app
+// EventsAPIURLVerificationEvent received when configuring a EventsAPI driven app
 type EventsAPIURLVerificationEvent struct {
 	Token     string `json:"token"`
 	Challenge string `json:"challenge"`
@@ -34,6 +36,7 @@ type EventsAPICallbackEvent struct {
 	APIAppID    string           `json:"api_app_id"`
 	InnerEvent  *json.RawMessage `json:"event"`
 	AuthedUsers []string         `json:"authed_users"`
+	AuthedTeams []string         `json:"authed_teams"`
 	EventID     string           `json:"event_id"`
 	EventTime   int              `json:"event_time"`
 }

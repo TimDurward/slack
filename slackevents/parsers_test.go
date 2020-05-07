@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/nlopes/slack"
+	"github.com/slack-go/slack"
 )
 
 func TestParserOuterCallBackEvent(t *testing.T) {
@@ -125,6 +125,21 @@ func TestBadTokenVerification(t *testing.T) {
 	`
 	_, e := ParseEvent(json.RawMessage(urlVerificationEvent), OptionVerifyToken(TokenComparator{"real-token"}))
 	if e == nil {
+		t.Fail()
+	}
+}
+
+func TestNoTokenVerification(t *testing.T) {
+	urlVerificationEvent := `
+		{
+			"token": "fake-token",
+			"challenge": "aljdsflaji3jj",
+			"type": "url_verification"
+		}
+	`
+	_, e := ParseEvent(json.RawMessage(urlVerificationEvent), OptionNoVerifyToken())
+	if e != nil {
+		fmt.Println(e)
 		t.Fail()
 	}
 }
